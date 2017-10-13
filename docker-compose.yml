@@ -1,0 +1,54 @@
+version: '3.1'
+
+services:
+  db:
+    build: ./db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  api:
+    image: subzerocloud/postgrest
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    links:
+      - db:db
+    environment:
+      DB_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB}
+      DB_SCHEMA: api
+      DB_ANON_ROLE: anon
+      JWT_SECRET: 3h/pVPnbWMp+whlXFLpN5narub4z0PtHbbxolxjnqAA=
+      MAX_ROWS: 1000000
+      #PRE_REQUEST: auth.check_token
+  nginx:
+    image: nginx
+    depends_on:
+      - db
+      - api
+    volumes:
+      - ./build:/srv/www
+      - ./nginx.conf:/etc/nginx/conf.d/mysite
+      - ./nginx_custom_settings.conf:/etc/nginx/conf.d/nginx_custom_settings.conf
+    ports:
+      - "${NGINX_PORT}:80"
+    command: /bin/bash -c "cat /etc/nginx/conf.d/mysite > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+  uploader:
+    build: ./uploader
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./uploader:/go/src/app
+      - ./build/uploads:/go/src/uploads
+  app:
+    build: .
+    volumes:
+      - ./build:/usr/www/build
+
+volumes:
+  postgres-data: {}
